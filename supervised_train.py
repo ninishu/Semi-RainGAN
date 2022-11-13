@@ -35,10 +35,10 @@ args = {
     'momentum': 0.9,
     'resume_snapshot': '',
     'val_freq': 50000000,
-    'img_size_h': 256,
+    'img_size_h': 512,
     'img_size_w': 512,
     'crop_size': 256,
-    'snapshot_epochs': 2,
+    'snapshot_epochs': 1,
     'epoch': 200,
     'dc_patch_size': 20,
     'lambda_out': 10,
@@ -54,10 +54,10 @@ triple_transform = triple_transforms3.Compose([
     # triple_transforms.RandomHorizontallyFlip()
 ])
 test_transform = transforms.Compose([
-    # transforms.Resize([256, 512]),
+    transforms.Resize([512, 512]),
     transforms.ToTensor()])
 to_tensor = transforms.ToTensor()
-train_set_labeled = ImageFolder(train_labeled_path, transform=None, is_train=True)
+train_set_labeled = ImageFolder(train_labeled_path, transform=triple_transform, is_train=True)
 train_loader_labeled = DataLoader(train_set_labeled, batch_size=args['train_batch_size'], num_workers=0, shuffle=True)
 # train_set_unlabeled = ImageFolder(train_unlabeled_path, transform=triple_transform, is_train=True)
 # train_loader_unlabeled = DataLoader(train_set_unlabeled, batch_size=args['train_batch_size'], num_workers=0,
@@ -69,7 +69,6 @@ test1_loader = DataLoader(test1_set, batch_size=1)
 L1_loss = nn.L1Loss()
 MSE_loss = nn.MSELoss()
 TVLoss = TVLoss()
-
 
 log_path = os.path.join(ckpt_path, exp_name, '1.txt')
 val_path = os.path.join(ckpt_path, exp_name, val_path)
@@ -103,7 +102,7 @@ def train(net, optimizer):
     curr_iter = args['last_iter']
     sup_loss_record = AvgMeter()
     out_loss_record = AvgMeter()
-    attention_loss_record = AvgMeter()
+    # attention_loss_record = AvgMeter()
     depth_loss_record = AvgMeter()
 
     result_psnr = 0
@@ -129,11 +128,13 @@ def train(net, optimizer):
             # result_psnr, result_ssim = validate(net, epoch, optimizer, result_psnr, result_ssim)
             out, attention, depth_pred = net(inputs)
 
+
             out_loss = L1_loss(out, gts)
-            attention_loss = MSE_loss(attention[:, 0, :, :], mask)
+            # attention_loss = MSE_loss(attention[:, 0, :, :], mask)
             depth_loss = L1_loss(depth_pred, depth)
 
-            loss = out_loss + attention_loss + depth_loss
+            # loss = out_loss + attention_loss + depth_loss
+            loss = out_loss + depth_loss
 
             loss.backward()
 
@@ -141,14 +142,14 @@ def train(net, optimizer):
 
             sup_loss_record.update(loss.data, batch_size)
             out_loss_record.update(out_loss.data, batch_size)
-            attention_loss_record.update(attention_loss.data, batch_size)
+            # attention_loss_record.update(attention_loss.data, batch_size)
             depth_loss_record.update(depth_loss.data, batch_size)
 
             curr_iter += 1
 
-            log = '[epoch %d], [iter %d], [supervised loss %.5f], [lr %.13f], [out_loss %.5f], [attention_loss %.5f],[depth_loss %.5f]' % \
+            log = '[epoch %d], [iter %d], [supervised loss %.5f], [lr %.13f], [out_loss %.5f],[depth_loss %.5f]' % \
                   (epoch, i, sup_loss_record.avg, optimizer.param_groups[1]['lr'],
-                   out_loss_record.avg, attention_loss_record.avg, depth_loss_record.avg)
+                   out_loss_record.avg, depth_loss_record.avg)
             print(log)
             open(log_path, 'a').write(log + '\n')
 
@@ -188,7 +189,7 @@ def validate(net, epoch, optimizer, result_psnr, result_ssim):
             ssimnum = compare_ssim(outs, gts, data_range=255, multichannel=True)
             open(os.path.join(val_path, "log", "val.txt"), 'a').write(
                 'i:%d,out:%s,gt:%s:psnr: %s, ssim:%s' % (
-                i, str(val_path + img_name), str(gt_path), str(psnrnum), str(ssimnum)) + '\n')
+                    i, str(val_path + img_name), str(gt_path), str(psnrnum), str(ssimnum)) + '\n')
             Sum_ssim += ssimnum
             Sum_psnr += psnrnum
 
